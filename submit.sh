@@ -1,3 +1,6 @@
+echo "Removing old output..."
+rm -f output.csv
+
 echo "Generating output..."
 python3 main.py || exit 1
 
