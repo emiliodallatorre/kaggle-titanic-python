@@ -1,21 +1,66 @@
+import random
 from pandas import DataFrame
+from sklearn.base import ClassifierMixin
 from sklearn.metrics import accuracy_score
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
+from fstpso import FuzzyPSO
 import repository
 
 
 TARGET_COLUMN: str = "Survived"
 IDENTITY_COLUMN: str = "PassengerId"
-IGNORED_COLUMNS: list[str] = ["Name", "Ticket", "Cabin", "Embarked"]
+IGNORED_COLUMNS: list[str] = ["Name", "Ticket", "Cabin"]
+MAPPABLE_COLUMNS: list[str] = ["Embarked", "Sex"]
 
 
 def input_transform(input: DataFrame) -> DataFrame:
     input.drop(columns=IGNORED_COLUMNS, inplace=True)
-    input["Sex"] = input["Sex"].apply(
-        lambda sex_str: 1 if sex_str == "male" else 0)
+
+    # Map labels to the DataFrame
+    for column in MAPPABLE_COLUMNS:
+        input[column] = input[column].map(
+            {val: idx for idx, val in enumerate(sorted(input[column].dropna().unique()))})
 
     return input
+
+
+def prepare_model(x_train: DataFrame, y_train: DataFrame, x_test: DataFrame, y_test: DataFrame) -> ClassifierMixin:
+    rf = RandomForestClassifier()
+
+    available_hyperparams: dict[str, list] = {
+        "n_estimators": [100, 1000],
+        "max_depth": [3, 30],
+        "min_samples_split": [2, 20],
+        "min_samples_leaf": [1, 10],
+    }
+
+    def evaluate_hyperparameters(particle):
+        hyperparams = {key: particle[idx] for idx, key in enumerate(
+            available_hyperparams.keys())}
+
+        rf.set_params(**hyperparams)
+        rf.fit(x_train, y_train)
+
+        y_pred = rf.predict(x_test)
+        return accuracy_score(y_test, y_pred)
+
+    dims = len(available_hyperparams)
+    search_space = list(map(lambda boundaries: list(range(
+        boundaries[0], boundaries[1])), available_hyperparams.values()))
+    print(search_space)
+
+    FP = FuzzyPSO()
+    FP.set_search_space_discrete(search_space)
+    FP.set_fitness(evaluate_hyperparameters)
+    result = FP.solve_with_fstpso(verbose=True)
+
+    print("Best solution:", result[0])
+    print("Whose fitness is:", result[1])
+
+    rf.fit(x_train, y_train)
+
+    return rf
 
 
 def main():
@@ -34,9 +79,8 @@ def main():
     x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2)
 
     # Prediction
-    rf = RandomForestClassifier()
-    rf.fit(x_train, y_train)
-    y_pred = rf.predict(x_test)
+    model = prepare_model(x_train, y_train, x_test, y_test)
+    y_pred = model.predict(x_test)
 
     # Evaluation
     accuracy = accuracy_score(y_test, y_pred)
@@ -44,7 +88,7 @@ def main():
 
     # Output
     output_data = DataFrame(
-        {"PassengerId": data_test["PassengerId"], TARGET_COLUMN: rf.predict(data_test.drop(columns=[IDENTITY_COLUMN]))})
+        {"PassengerId": data_test["PassengerId"], TARGET_COLUMN: model.predict(data_test.drop(columns=[IDENTITY_COLUMN]))})
     repository.write_output(output_data)
 
 
