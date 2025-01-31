@@ -293,3 +293,7 @@ pip-selfcheck.json
 .ionide
 
 # End of https://www.toptal.com/developers/gitignore/api/python,venv,visualstudiocode,pycharm+all
+
+
+# Competition artifacts
+output.csv
