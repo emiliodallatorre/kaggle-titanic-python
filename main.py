@@ -5,17 +5,25 @@ from sklearn.metrics import accuracy_score
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from fstpso import FuzzyPSO
+import re
 import repository
 
 
 TARGET_COLUMN: str = "Survived"
 IDENTITY_COLUMN: str = "PassengerId"
-IGNORED_COLUMNS: list[str] = ["Name", "Ticket", "Cabin"]
-MAPPABLE_COLUMNS: list[str] = ["Embarked", "Sex"]
+IGNORED_COLUMNS: list[str] = ["Name", "Cabin"]
+MAPPABLE_COLUMNS: list[str] = ["Embarked", "Sex", "Ticket"]
 
 
 def input_transform(input: DataFrame) -> DataFrame:
     input.drop(columns=IGNORED_COLUMNS, inplace=True)
+
+    TICKET_SPLIT_REGEX: str = r"(.*?) (\d+)"
+    input["Ticket"] = input["Ticket"].apply(
+        lambda ticket_code: re.match(TICKET_SPLIT_REGEX, ticket_code).group(
+            1) if re.match(TICKET_SPLIT_REGEX, ticket_code) else None
+    )
+    print(input["Ticket"])
 
     # Map labels to the DataFrame
     for column in MAPPABLE_COLUMNS:
@@ -26,8 +34,6 @@ def input_transform(input: DataFrame) -> DataFrame:
 
 
 def prepare_model(x_train: DataFrame, y_train: DataFrame, x_test: DataFrame, y_test: DataFrame) -> ClassifierMixin:
-    rf = RandomForestClassifier()
-
     available_hyperparams: dict[str, list] = {
         "n_estimators": [100, 1000],
         "max_depth": [3, 30],
@@ -45,15 +51,17 @@ def prepare_model(x_train: DataFrame, y_train: DataFrame, x_test: DataFrame, y_t
         y_pred = rf.predict(x_test)
         return accuracy_score(y_test, y_pred)
 
-    dims = len(available_hyperparams)
+    rf = RandomForestClassifier()
+    rf.fit(x_train, y_train)
+    print(f"Accuracy with default hyperparameters: {accuracy_score(y_test, rf.predict(x_test))}")
+
     search_space = list(map(lambda boundaries: list(range(
         boundaries[0], boundaries[1])), available_hyperparams.values()))
-    print(search_space)
 
     FP = FuzzyPSO()
     FP.set_search_space_discrete(search_space)
     FP.set_fitness(evaluate_hyperparameters)
-    result = FP.solve_with_fstpso(verbose=True)
+    result = FP.solve_with_fstpso()
 
     print("Best solution:", result[0])
     print("Whose fitness is:", result[1])
