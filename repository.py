@@ -10,4 +10,4 @@ def read_test_data() -> DataFrame:
 
 
 def write_output(output: DataFrame) -> None:
-    output.to_csv("output.csv")
+    output.to_csv("output.csv", index=False)

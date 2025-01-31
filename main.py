@@ -6,8 +6,8 @@ import repository
 
 
 TARGET_COLUMN: str = "Survived"
-IGNORED_COLUMNS: list[str] = ["PassengerId",
-                              "Name", "Ticket", "Cabin", "Embarked"]
+IDENTITY_COLUMN: str = "PassengerId"
+IGNORED_COLUMNS: list[str] = ["Name", "Ticket", "Cabin", "Embarked"]
 
 
 def input_transform(input: DataFrame) -> DataFrame:
@@ -20,11 +20,14 @@ def input_transform(input: DataFrame) -> DataFrame:
 
 def main():
     # Data loading
-    data_train: DataFrame = repository.read_training_data()
     data_test: DataFrame = repository.read_test_data()
+    data_train: DataFrame = repository.read_training_data()
 
     # Data cleaning
+    data_test = input_transform(data_test)
+
     data_train = input_transform(data_train)
+    data_train.drop(columns=[IDENTITY_COLUMN], inplace=True)
     x: DataFrame = data_train.drop(columns=[TARGET_COLUMN])
     y: DataFrame = data_train[TARGET_COLUMN]
 
@@ -37,8 +40,12 @@ def main():
 
     # Evaluation
     accuracy = accuracy_score(y_test, y_pred)
-
     print(f"# Accuracy: {accuracy}")
+
+    # Output
+    output_data = DataFrame(
+        {"PassengerId": data_test["PassengerId"], TARGET_COLUMN: rf.predict(data_test.drop(columns=[IDENTITY_COLUMN]))})
+    repository.write_output(output_data)
 
 
 if __name__ == "__main__":
