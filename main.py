@@ -1,6 +1,8 @@
 from pandas import DataFrame
+from sklearn.impute import SimpleImputer
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
+from numpy import nan
 import re
 import repository
 import brain
@@ -8,26 +10,31 @@ import brain
 
 TARGET_COLUMN: str = "Survived"
 IDENTITY_COLUMN: str = "PassengerId"
-IGNORED_COLUMNS: list[str] = ["Name", "Cabin"]
-MAPPABLE_COLUMNS: list[str] = ["Embarked", "Sex", "Ticket"]
+IGNORED_COLUMNS: list[str] = ["Name", "Cabin", "Ticket", "Embarked"]
+MAPPABLE_COLUMNS: list[str] = ["Sex"]
 
 
 def input_transform(input: DataFrame) -> DataFrame:
     input.drop(columns=IGNORED_COLUMNS, inplace=True)
 
     TICKET_SPLIT_REGEX: str = r"(.*?) (\d+)"
-    input["Ticket"] = input["Ticket"].apply(
-        lambda ticket_code: re.match(TICKET_SPLIT_REGEX, ticket_code).group(
-            1) if re.match(TICKET_SPLIT_REGEX, ticket_code) else None
-    )
-    print(input["Ticket"])
+    if "Ticket" in input.columns:
+        input["Ticket"] = input["Ticket"].apply(
+            lambda ticket_code: re.match(TICKET_SPLIT_REGEX, ticket_code).group(
+                1) if re.match(TICKET_SPLIT_REGEX, ticket_code) else None
+        )
 
     # Map labels to the DataFrame
     for column in MAPPABLE_COLUMNS:
         input[column] = input[column].map(
             {val: idx for idx, val in enumerate(sorted(input[column].dropna().unique()))})
 
-    return input
+    si = SimpleImputer(missing_values=nan, strategy='mean')
+    new_input: DataFrame = DataFrame(si.fit_transform(input))
+    new_input.columns = input.columns
+    new_input.index = input.index
+
+    return new_input
 
 
 def main():
